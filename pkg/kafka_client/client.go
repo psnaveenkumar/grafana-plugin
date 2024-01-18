@@ -1,11 +1,9 @@
 package kafka_client
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"os"
 	"time"
 
@@ -36,10 +34,18 @@ type KafkaClient struct {
 	SaslPassword       string
 	Debug              string
 	HealthcheckTimeout int32
+	//Partitions         []kafka.TopicPartition
+}
+
+type Data struct {
+	Name           string  `json:"name"`
+	ValueTimestamp string  `json:"valuetimestamp"`
+	Quality        string  `json:"quality"`
+	Value          float64 `json:"value"`
 }
 
 type KafkaMessage struct {
-	Value     map[string]float64
+	Value     Data
 	Timestamp time.Time
 	Offset    kafka.Offset
 }
@@ -70,55 +76,24 @@ func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, client
 		"group.id":           "kafka-datasource",
 		"enable.auto.commit": "false",
 	}
-
-	if client.SecurityProtocol != "" {
-		config.SetKey("security.protocol", client.SecurityProtocol)
-	}
-	if client.SaslMechanisms != "" {
-		config.SetKey("sasl.mechanisms", client.SaslMechanisms)
-	}
-	if client.SaslUsername != "" {
-		config.SetKey("sasl.username", client.SaslUsername)
-	}
-	if client.SaslPassword != "" {
-		config.SetKey("sasl.password", client.SaslPassword)
-	}
-	if client.Debug != "" {
-		config.SetKey("debug", client.Debug)
-	}
-
-	// TLS configuration
-	caCert, err := ioutil.ReadFile(caCertPath)
-	if err != nil {
-		panic(err)
-	}
-	clientCert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
-	if err != nil {
-		panic(err)
-	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
-
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{clientCert},
-		RootCAs:      caCertPool,
-	}
-
-	tlsConfig.InsecureSkipVerify = true // Change this based on security requirements
-	tlsConfig.BuildNameToCertificate()
-
-	config.SetKey("ssl.certificate.location", clientCertPath)
-	config.SetKey("ssl.key.location", clientKeyPath)
-	config.SetKey("ssl.ca.location", caCertPath)
-
-	config.SetKey("security.protocol", "ssl")                  // Use SSL protocol
-	config.SetKey("ssl.endpoint.identification.algorithm", "") // Allow insecure connections
+	//if client.SecurityProtocol != "" {
+	//	config.SetKey("security.protocol", client.SecurityProtocol)
+	//}
+	//if client.SaslMechanisms != "" {
+	//	config.SetKey("sasl.mechanisms", client.SaslMechanisms)
+	//}
+	//if client.SaslMechanisms != "" {
+	//	config.SetKey("sasl.username", client.SaslUsername)
+	//}
+	//if client.SaslMechanisms != "" {
+	//	config.SetKey("sasl.password", client.SaslPassword)
+	//}
+	//if client.Debug != "" {
+	//	config.SetKey("debug", client.Debug)
+	//}
 
 	client.Consumer, err = kafka.NewConsumer(&config)
-	if err != nil {
-		panic(err)
-	}
-
+	//client.Partitions = make([]kafka.TopicPartition, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -126,6 +101,7 @@ func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, client
 
 func (client *KafkaClient) TopicAssign(topic string, partition int32, autoOffsetReset string,
 	timestampMode string) {
+	log.DefaultLogger.Info("topicAssign called", "topic", topic)
 	client.consumerInitialize("", "", "")
 	client.TimestampMode = timestampMode
 	var err error
@@ -155,6 +131,12 @@ func (client *KafkaClient) TopicAssign(topic string, partition int32, autoOffset
 		Metadata:  new(string),
 		Error:     err,
 	}
+	//if len(client.Partitions) == 0 {
+	//	client.Partitions = make([]kafka.TopicPartition, 0)
+	//}
+	//client.Partitions = append(client.Partitions, topic_partition)
+	////partitions := []kafka.TopicPartition{topic_partition}
+	//err = client.Consumer.Assign(client.Partitions)
 	partitions := []kafka.TopicPartition{topic_partition}
 	err = client.Consumer.Assign(partitions)
 
@@ -189,7 +171,8 @@ func (client *KafkaClient) ConsumerPull() (KafkaMessage, kafka.Event) {
 func (client KafkaClient) HealthCheck() error {
 	client.consumerInitialize("", "", "")
 
-	_, err := client.Consumer.GetMetadata(nil, true, int(client.HealthcheckTimeout))
+	topic := ""
+	_, err := client.Consumer.GetMetadata(&topic, false, 200)
 
 	if err != nil {
 		if err.(kafka.Error).Code() == kafka.ErrTransport {

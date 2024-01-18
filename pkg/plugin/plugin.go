@@ -142,6 +142,8 @@ func (d *KafkaDatasource) SubscribeStream(_ context.Context, req *backend.Subscr
 	autoOffsetReset := path[2]
 	timestampMode := path[3]
 	// Initialize Consumer and Assign the topic
+	log.DefaultLogger.Info("SubscribeStream called for topic", "topic_name", topic)
+	// TODO need to accept list
 	d.client.TopicAssign(topic, int32(partition), autoOffsetReset, timestampMode)
 	status := backend.SubscribeStreamStatusPermissionDenied
 	status = backend.SubscribeStreamStatusOK
@@ -178,14 +180,32 @@ func (d *KafkaDatasource) RunStream(ctx context.Context, req *backend.RunStreamR
 			log.DefaultLogger.Info("timestamp", frame_time)
 			frame.Fields[0].Set(0, frame_time)
 
-			cnt := 1
-
-			for key, value := range msg.Value {
-				frame.Fields = append(frame.Fields,
-					data.NewField(key, nil, make([]float64, 1)))
-				frame.Fields[cnt].Set(0, value)
-				cnt++
-			}
+			layout := "2006-01-02T15:04:05.000000Z"
+			date, _ := time.Parse(layout, msg.Value.ValueTimestamp)
+			//log.DefaultLogger.Info(fmt.Sprintf("kafka topic: %v", topic))
+			log.DefaultLogger.Info(fmt.Sprintf("kafka msg: %v", msg.Value))
+			log.DefaultLogger.Info(fmt.Sprintf("name: %v", msg.Value.Name))
+			log.DefaultLogger.Info(fmt.Sprintf("value: %v", msg.Value.Value))
+			log.DefaultLogger.Info(fmt.Sprintf("quality: %v", msg.Value.Quality))
+			log.DefaultLogger.Info(fmt.Sprintf("valuetimestame date: %v", date))
+			log.DefaultLogger.Info("---------")
+			frame.Fields = append(frame.Fields,
+				data.NewField("name", nil, []string{msg.Value.Name}),
+				data.NewField("value", nil, []float64{msg.Value.Value}),
+				data.NewField("quality", nil, []string{msg.Value.Quality}),
+				data.NewField("timestamp", nil, []time.Time{date}),
+			)
+			// add dummy value
+			//frame.Fields = append(frame.Fields,
+			//	data.NewField("testValue", nil, make([]float64, 1)))
+			//frame.Fields[cnt].Set(0, msg.Value.TestValue)
+			//cnt++
+			//for key, value := range msg.Value {
+			//	frame.Fields = append(frame.Fields,
+			//		data.NewField(key, nil, make([]float64, 1)))
+			//	frame.Fields[cnt].Set(0, value)
+			//	cnt++
+			//}
 
 			err := sender.SendFrame(frame, data.IncludeAll)
 

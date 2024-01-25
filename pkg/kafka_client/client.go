@@ -76,6 +76,18 @@ func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, client
 		"group.id":           "kafka-datasource",
 		"enable.auto.commit": "false",
 	}
+	if client.SecurityProtocol != "" {
+		log.DefaultLogger.Info("setting SecurityProtocol", "SecurityProtocol", client.SecurityProtocol)
+		config.SetKey("security.protocol", client.SecurityProtocol)
+	}
+	if client.SaslMechanisms != "" {
+		log.DefaultLogger.Info("setting SaslMechanisms", "SaslMechanisms", client.SaslMechanisms)
+		config.SetKey("sasl.mechanisms", client.SaslMechanisms)
+		log.DefaultLogger.Info("setting SaslUsername", "SaslUsername", client.SaslUsername)
+		config.SetKey("sasl.username", client.SaslUsername)
+		log.DefaultLogger.Info("setting SaslUsername", "SaslUsername", client.SaslUsername)
+		config.SetKey("sasl.password", client.SaslUsername)
+	}
 	//if client.SecurityProtocol != "" {
 	//	config.SetKey("security.protocol", client.SecurityProtocol)
 	//}

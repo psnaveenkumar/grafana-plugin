@@ -154,16 +154,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
 
         <div className="gf-form">
           <FormField
-            label="Debug"
-            labelWidth={11}
-            onChange={this.onDebugChange}
-            value={jsonData.debug || ''}
-            placeholder="<librdkafka Debug Level>"
-          />
-        </div>
-
-        <div className="gf-form">
-          <FormField
             label="Healthcheck Timeout (ms)"
             labelWidth={11}
             onChange={this.onHealthcheckTimeoutChange}

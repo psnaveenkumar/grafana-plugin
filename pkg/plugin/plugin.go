@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/grafana/grafana-plugin-sdk-go/live"
 	"strconv"
 	"strings"
 	"time"
@@ -12,8 +13,6 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
-	"github.com/grafana/grafana-plugin-sdk-go/live"
-
 	"github.com/hoptical/grafana-kafka-datasource/pkg/kafka_client"
 )
 
@@ -157,7 +156,7 @@ func (d *KafkaDatasource) SubscribeStream(_ context.Context, req *backend.Subscr
 }
 
 func (d *KafkaDatasource) RunStream(ctx context.Context, req *backend.RunStreamRequest, sender *backend.StreamSender) error {
-	log.DefaultLogger.Info("RunStream called", "request", req)
+	log.DefaultLogger.Info("RunStream called for path", "request", req, "path", req.Path)
 
 	for {
 		select {
@@ -167,6 +166,11 @@ func (d *KafkaDatasource) RunStream(ctx context.Context, req *backend.RunStreamR
 		default:
 			msg, event := d.client.ConsumerPull()
 			if event == nil {
+				log.DefaultLogger.Info("event empty")
+				continue
+			}
+			if msg.Topic == "" {
+				log.DefaultLogger.Info("topic empty")
 				continue
 			}
 			frame := data.NewFrame("response")

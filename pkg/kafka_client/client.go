@@ -101,6 +101,13 @@ func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, client
 	//if client.Debug != "" {
 	//	config.SetKey("debug", client.Debug)
 	//}
+	if caCertPath != "" && clientCertPath != "" && clientKeyPath != "" {
+		// Apply TLS configuration to the Kafka client
+		config.SetKey("security.protocol", "ssl")
+		config.SetKey("ssl.certificate.location", clientCertPath)
+		config.SetKey("ssl.key.location", clientKeyPath)
+		config.SetKey("ssl.ca.location", caCertPath)
+	}
 
 	client.Consumer, err = kafka.NewConsumer(&config)
 	if err != nil {

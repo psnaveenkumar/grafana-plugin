@@ -25,6 +25,7 @@ export interface KafkaDataSourceOptions extends DataSourceJsonData {
   saslUsername: string;
   debug: string;
   healthcheckTimeout: number;
+  dataType: string;
 }
 
 export interface KafkaSecureJsonData {

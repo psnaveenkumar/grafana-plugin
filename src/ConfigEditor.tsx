@@ -89,6 +89,15 @@ export class ConfigEditor extends PureComponent<Props, State> {
     onOptionsChange({ ...options, jsonData });
   };
 
+  onDataTypeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { onOptionsChange, options } = this.props;
+    const jsonData = {
+      ...options.jsonData,
+      dataType: event.target.value,
+    };
+    onOptionsChange({ ...options, jsonData });
+  };
+
   render() {
     const { options } = this.props;
     const { jsonData, secureJsonFields } = options;
@@ -136,7 +145,15 @@ export class ConfigEditor extends PureComponent<Props, State> {
             placeholder="<SASL Username>"
           />
         </div>
-
+        <div className="gf-form">
+          <FormField
+              label="data type"
+              labelWidth={11}
+              onChange={this.onDataTypeChange}
+              value={jsonData.dataType || 'JSON'}
+              placeholder="<JSON|AVRO>"
+          />
+        </div>
         <div className="gf-form-inline">
           <div className="gf-form">
             <SecretFormField

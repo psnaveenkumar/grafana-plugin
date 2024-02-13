@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/grafana/grafana-plugin-sdk-go/live"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,8 +30,8 @@ func NewKafkaInstance(s backend.DataSourceInstanceSettings) (instancemgmt.Instan
 	}
 
 	kafka_client := kafka_client.NewKafkaClient(*settings)
-
-	return &KafkaDatasource{kafka_client}, nil
+	dataSource := &KafkaDatasource{kafka_client}
+	return dataSource, nil
 }
 
 func getDatasourceSettings(s backend.DataSourceInstanceSettings) (*kafka_client.Options, error) {
@@ -58,6 +57,7 @@ type KafkaDatasource struct {
 
 func (d *KafkaDatasource) Dispose() {
 	// Clean up datasource instance resources.
+	log.DefaultLogger.Info("dispose called")
 }
 
 func (d *KafkaDatasource) QueryData(ctx context.Context, req *backend.QueryDataRequest) (*backend.QueryDataResponse, error) {
@@ -75,11 +75,9 @@ func (d *KafkaDatasource) QueryData(ctx context.Context, req *backend.QueryDataR
 }
 
 type queryModel struct {
-	Topic           string `json:"topicName"`
-	Partition       int32  `json:"partition"`
-	WithStreaming   bool   `json:"withStreaming"`
-	AutoOffsetReset string `json:"autoOffsetReset"`
-	TimestampMode   string `json:"timestampMode"`
+	Topic         string `json:"topicName"`
+	Partition     int32  `json:"partition"`
+	WithStreaming bool   `json:"withStreaming"`
 }
 
 func (d *KafkaDatasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
@@ -100,13 +98,11 @@ func (d *KafkaDatasource) query(_ context.Context, pCtx backend.PluginContext, q
 
 	topic := qm.Topic
 	partition := qm.Partition
-	autoOffsetReset := qm.AutoOffsetReset
-	timestampMode := qm.TimestampMode
 	if qm.WithStreaming {
 		channel := live.Channel{
 			Scope:     live.ScopeDatasource,
 			Namespace: pCtx.DataSourceInstanceSettings.UID,
-			Path:      fmt.Sprintf("%v_%d_%v_%v", topic, partition, autoOffsetReset, timestampMode),
+			Path:      fmt.Sprintf("%v_%d_%v", topic, partition, query.RefID),
 		}
 		frame.SetMeta(&data.FrameMeta{Channel: channel.String()})
 	}
@@ -136,19 +132,25 @@ func (d *KafkaDatasource) CheckHealth(_ context.Context, req *backend.CheckHealt
 }
 
 func (d *KafkaDatasource) SubscribeStream(_ context.Context, req *backend.SubscribeStreamRequest) (*backend.SubscribeStreamResponse, error) {
-	log.DefaultLogger.Info("SubscribeStream called", "request", req)
+	log.DefaultLogger.Info("SubscribeStream called", "request", req, "path", req.Path)
 	// Extract the query parameters
 	var path []string = strings.Split(req.Path, "_")
 	topic := path[0]
-	partition, _ := strconv.Atoi(path[1])
-	autoOffsetReset := path[2]
-	timestampMode := path[3]
+	//partition, _ := strconv.Atoi(path[1])
+	//autoOffsetReset := path[2]
+	//timestampMode := path[3]
 	// Initialize Consumer and Assign the topic
 	log.DefaultLogger.Info("SubscribeStream called for topic", "topic_name", topic)
 	// TODO need to accept list
-	d.client.TopicAssign(topic, int32(partition), autoOffsetReset, timestampMode)
-	status := backend.SubscribeStreamStatusPermissionDenied
-	status = backend.SubscribeStreamStatusOK
+	err := d.client.TopicAssign(topic)
+	if err != nil {
+		log.DefaultLogger.Error("topicAssign error", "topic", topic)
+		return &backend.SubscribeStreamResponse{
+			Status: backend.SubscribeStreamStatusNotFound,
+		}, nil
+	}
+	//status := backend.SubscribeStreamStatusPermissionDenied
+	status := backend.SubscribeStreamStatusOK
 
 	return &backend.SubscribeStreamResponse{
 		Status: status,
@@ -189,19 +191,29 @@ func (d *KafkaDatasource) RunStream(ctx context.Context, req *backend.RunStreamR
 
 			layout := "2006-01-02T15:04:05.000000Z"
 			date, _ := time.Parse(layout, msg.Value.ValueTimestamp)
-			//log.DefaultLogger.Info(fmt.Sprintf("kafka topic: %v", topic))
+			log.DefaultLogger.Info(fmt.Sprintf("kafka topic: %v", msg.Topic))
 			log.DefaultLogger.Info(fmt.Sprintf("kafka msg: %v", msg.Value))
 			log.DefaultLogger.Info(fmt.Sprintf("name: %v", msg.Value.Name))
 			log.DefaultLogger.Info(fmt.Sprintf("value: %v", msg.Value.Value))
 			log.DefaultLogger.Info(fmt.Sprintf("quality: %v", msg.Value.Quality))
 			log.DefaultLogger.Info(fmt.Sprintf("valuetimestame date: %v", date))
 			log.DefaultLogger.Info("---------")
+			labels := map[string]string{
+				"topic": msg.Topic,
+			}
 			frame.Fields = append(frame.Fields,
-				data.NewField("name", nil, []string{msg.Value.Name}),
-				data.NewField("value", nil, []float64{msg.Value.Value}),
-				data.NewField("quality", nil, []string{msg.Value.Quality}),
-				data.NewField("timestamp", nil, []time.Time{date}),
+				data.NewField("name", labels, []string{msg.Value.Name}),
+				data.NewField("value", labels, []float64{msg.Value.Value}),
+				data.NewField("quality", labels, []string{msg.Value.Quality}),
+				data.NewField("timestamp", labels, []time.Time{date}),
 			)
+			//change this and see if retyping topic works
+			channel := live.Channel{
+				Scope:     live.ScopeDatasource,
+				Namespace: req.PluginContext.DataSourceInstanceSettings.UID,
+				Path:      msg.Topic,
+			}
+			frame.SetMeta(&data.FrameMeta{Path: msg.Topic, Channel: channel.String()})
 			// add dummy value
 			//frame.Fields = append(frame.Fields,
 			//	data.NewField("testValue", nil, make([]float64, 1)))

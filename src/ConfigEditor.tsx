@@ -71,15 +71,6 @@ export class ConfigEditor extends PureComponent<Props, State> {
     });
   };
 
-  onDebugChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const { onOptionsChange, options } = this.props;
-    const jsonData = {
-      ...options.jsonData,
-      debug: event.target.value,
-    };
-    onOptionsChange({ ...options, jsonData });
-  };
-
   onHealthcheckTimeoutChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { onOptionsChange, options } = this.props;
     const jsonData = {
@@ -94,6 +85,15 @@ export class ConfigEditor extends PureComponent<Props, State> {
     const jsonData = {
       ...options.jsonData,
       dataType: event.target.value,
+    };
+    onOptionsChange({ ...options, jsonData });
+  };
+
+  onConsumerGroupChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const { onOptionsChange, options } = this.props;
+    const jsonData = {
+      ...options.jsonData,
+      consumerName: event.target.value,
     };
     onOptionsChange({ ...options, jsonData });
   };
@@ -147,11 +147,20 @@ export class ConfigEditor extends PureComponent<Props, State> {
         </div>
         <div className="gf-form">
           <FormField
-              label="data type"
+              label="Data type"
               labelWidth={11}
               onChange={this.onDataTypeChange}
               value={jsonData.dataType || 'JSON'}
               placeholder="<JSON|AVRO>"
+          />
+        </div>
+        <div className="gf-form">
+          <FormField
+              label="Consumer Name"
+              labelWidth={11}
+              onChange={this.onConsumerGroupChange}
+              value={jsonData.consumerName || 'kafka-datasource'}
+              placeholder="<Consumer name>"
           />
         </div>
         <div className="gf-form-inline">

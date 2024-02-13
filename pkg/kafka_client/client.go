@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
-	"github.com/hamba/avro"
+	"github.com/hamba/avro/v2"
 	"os"
 	"time"
 
@@ -24,6 +24,7 @@ type Options struct {
 	HealthcheckTimeout int32  `json:"healthcheckTimeout"`
 	Debug              string `json:"debug"`
 	DataType           string `json:"dataType"`
+	ConsumerName       string `json:"consumerName"`
 }
 
 type KafkaClient struct {
@@ -37,6 +38,7 @@ type KafkaClient struct {
 	Debug              string
 	HealthcheckTimeout int32
 	DataType           string
+	ConsumerName       string
 }
 
 type Data struct {
@@ -63,11 +65,17 @@ func NewKafkaClient(options Options) KafkaClient {
 		Debug:              options.Debug,
 		HealthcheckTimeout: options.HealthcheckTimeout,
 		DataType:           options.DataType,
+		ConsumerName:       options.ConsumerName,
 	}
 	return client
 }
 
 func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, clientKeyPath string) {
+	log.DefaultLogger.Info("consumerInitialize called")
+	if client.Consumer != nil {
+		log.DefaultLogger.Info("consumerInitialize already done")
+		return
+	}
 	var err error
 	/*
 		caCertPath would be the path to ca-cert.pem.
@@ -77,30 +85,22 @@ func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, client
 	log.DefaultLogger.Info("consumerInitialize called")
 	config := kafka.ConfigMap{
 		"bootstrap.servers":  client.BootstrapServers,
-		"group.id":           "kafka-datasource",
+		"group.id":           client.ConsumerName,
 		"enable.auto.commit": "false",
 	}
-	//if client.SecurityProtocol != "" {
-	//	log.DefaultLogger.Info("setting SecurityProtocol", "SecurityProtocol", client.SecurityProtocol)
-	//	config.SetKey("security.protocol", client.SecurityProtocol)
-	//}
-	//if client.SaslMechanisms != "" {
-	//	log.DefaultLogger.Info("setting SaslMechanisms", "SaslMechanisms", client.SaslMechanisms)
-	//	config.SetKey("sasl.mechanisms", client.SaslMechanisms)
-	//	log.DefaultLogger.Info("setting SaslUsername", "SaslUsername", client.SaslUsername)
-	//	config.SetKey("sasl.username", client.SaslUsername)
-	//	log.DefaultLogger.Info("setting SaslUsername", "SaslUsername", client.SaslUsername)
-	//	config.SetKey("sasl.password", client.SaslUsername)
-	//}
-	//if client.SaslMechanisms != "" {
-	//	config.SetKey("sasl.username", client.SaslUsername)
-	//}
-	//if client.SaslMechanisms != "" {
-	//	config.SetKey("sasl.password", client.SaslPassword)
-	//}
-	//if client.Debug != "" {
-	//	config.SetKey("debug", client.Debug)
-	//}
+	if client.SecurityProtocol != "" {
+		log.DefaultLogger.Info("setting SecurityProtocol", "SecurityProtocol", client.SecurityProtocol)
+		config.SetKey("security.protocol", client.SecurityProtocol)
+	}
+	if client.SaslMechanisms != "" {
+		log.DefaultLogger.Info("setting SaslMechanisms", "SaslMechanisms", client.SaslMechanisms)
+		config.SetKey("sasl.mechanisms", client.SaslMechanisms)
+		log.DefaultLogger.Info("setting SaslUsername", "SaslUsername", client.SaslUsername)
+		config.SetKey("sasl.username", client.SaslUsername)
+		log.DefaultLogger.Info("setting SaslUsername", "SaslUsername", client.SaslUsername)
+		config.SetKey("sasl.password", client.SaslUsername)
+	}
+
 	if caCertPath != "" && clientCertPath != "" && clientKeyPath != "" {
 		// Apply TLS configuration to the Kafka client
 		config.SetKey("security.protocol", "ssl")
@@ -115,50 +115,58 @@ func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, client
 	}
 }
 
-func (client *KafkaClient) TopicAssign(topic string, partition int32, autoOffsetReset string,
-	timestampMode string) {
+//func (client *KafkaClient) TopicAssign(topic string, partition int32, autoOffsetReset string, timestampMode string) error {
+
+func (client *KafkaClient) TopicAssign(topic string) error {
 	log.DefaultLogger.Info("topicAssign called", "topic", topic)
-	client.consumerInitialize("", "", "")
-	client.TimestampMode = timestampMode
-	var err error
-	var offset int64
-	var high, low int64
-	switch autoOffsetReset {
-	case "latest":
-		offset = int64(kafka.OffsetEnd)
-	case "earliest":
-		low, high, err = client.Consumer.QueryWatermarkOffsets(topic, partition, 100)
-		if err != nil {
-			panic(err)
-		}
-		if high-low > MAX_EARLIEST {
-			offset = high - MAX_EARLIEST
-		} else {
-			offset = low
-		}
-	default:
-		offset = int64(kafka.OffsetEnd)
-	}
-
-	topic_partition := kafka.TopicPartition{
-		Topic:     &topic,
-		Partition: partition,
-		Offset:    kafka.Offset(offset),
-		Metadata:  new(string),
-		Error:     err,
-	}
-	//if len(client.Partitions) == 0 {
-	//	client.Partitions = make([]kafka.TopicPartition, 0)
+	//if client.Consumer != nil {
+	//	err := client.Consumer.Close()
+	//	if err != nil {
+	//		log.DefaultLogger.Error(fmt.Sprintf("error during subscribing to topic: %s err: %v", topic, err))
+	//	}
 	//}
-	//client.Partitions = append(client.Partitions, topic_partition)
-	////partitions := []kafka.TopicPartition{topic_partition}
-	//err = client.Consumer.Assign(client.Partitions)
-	partitions := []kafka.TopicPartition{topic_partition}
-	err = client.Consumer.Assign(partitions)
 
+	client.consumerInitialize("", "", "")
+	//client.TimestampMode = timestampMode
+	//var err error
+	//var offset int64
+	//var high, low int64
+	//switch autoOffsetReset {
+	//case "latest":
+	//	offset = int64(kafka.OffsetEnd)
+	//case "earliest":
+	//	low, high, err = client.Consumer.QueryWatermarkOffsets(topic, partition, 100)
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	if high-low > MAX_EARLIEST {
+	//		offset = high - MAX_EARLIEST
+	//	} else {
+	//		offset = low
+	//	}
+	//default:
+	//	offset = int64(kafka.OffsetEnd)
+	//}
+	//
+	//topic_partition := kafka.TopicPartition{
+	//	Topic:     &topic,
+	//	Partition: partition,
+	//	Offset:    kafka.Offset(offset),
+	//	Metadata:  new(string),
+	//	Error:     err,
+	//}
+	//partitions := []kafka.TopicPartition{topic_partition}
+	//err = client.Consumer.Assign(partitions)
+	_, err2 := client.Consumer.GetMetadata(&topic, false, 200)
+	if err2 != nil {
+		log.DefaultLogger.Error(fmt.Sprintf("topic doesnot exist: %s err: %v", topic, err2))
+		return err2
+	}
+	err := client.Consumer.Subscribe(topic, nil)
 	if err != nil {
 		log.DefaultLogger.Error(fmt.Sprintf("error during subscribing to topic: %s err: %v", topic, err))
 	}
+	return err
 }
 
 func (client *KafkaClient) ConsumerPull() (KafkaMessage, kafka.Event) {
@@ -203,7 +211,7 @@ func (client *KafkaClient) ConsumerPull() (KafkaMessage, kafka.Event) {
 	return message, ev
 }
 
-func (client KafkaClient) HealthCheck() error {
+func (client *KafkaClient) HealthCheck() error {
 	log.DefaultLogger.Info("healthcheck called")
 	client.consumerInitialize("", "", "")
 
@@ -220,7 +228,9 @@ func (client KafkaClient) HealthCheck() error {
 }
 
 func (client *KafkaClient) Dispose() {
+	log.DefaultLogger.Info("KafkaClient dispose called")
 	if client.Consumer != nil {
 		client.Consumer.Close()
+		client.Consumer = nil
 	}
 }

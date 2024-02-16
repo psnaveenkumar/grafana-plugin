@@ -180,11 +180,12 @@ func (d *KafkaDatasource) RunStream(ctx context.Context, req *backend.RunStreamR
 				data.NewField("time", nil, make([]time.Time, 1)),
 			)
 			var frame_time time.Time
-			if d.client.TimestampMode == "now" {
-				frame_time = time.Now()
-			} else {
-				frame_time = msg.Timestamp
-			}
+			//if d.client.TimestampMode == "now" {
+			//	frame_time = time.Now()
+			//} else {
+			//	frame_time = msg.Timestamp
+			//}
+			frame_time = time.Now()
 			log.DefaultLogger.Info("Offset", msg.Offset)
 			log.DefaultLogger.Info("timestamp", frame_time)
 			frame.Fields[0].Set(0, frame_time)
@@ -198,14 +199,11 @@ func (d *KafkaDatasource) RunStream(ctx context.Context, req *backend.RunStreamR
 			log.DefaultLogger.Info(fmt.Sprintf("quality: %v", msg.Value.Quality))
 			log.DefaultLogger.Info(fmt.Sprintf("valuetimestame date: %v", date))
 			log.DefaultLogger.Info("---------")
-			labels := map[string]string{
-				"topic": msg.Topic,
-			}
 			frame.Fields = append(frame.Fields,
-				data.NewField("name", labels, []string{msg.Value.Name}),
-				data.NewField("value", labels, []float64{msg.Value.Value}),
-				data.NewField("quality", labels, []string{msg.Value.Quality}),
-				data.NewField("timestamp", labels, []time.Time{date}),
+				data.NewField("name", nil, []string{msg.Value.Name}),
+				data.NewField("value", nil, []float64{msg.Value.Value}),
+				data.NewField("quality", nil, []string{msg.Value.Quality}),
+				data.NewField("timestamp", nil, []time.Time{date}),
 			)
 			//change this and see if retyping topic works
 			channel := live.Channel{

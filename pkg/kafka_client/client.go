@@ -6,6 +6,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/hamba/avro/v2"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
@@ -83,9 +84,13 @@ func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, client
 				depending on which one you're using.
 		clientKeyPath would be the path to the corresponding private key, either kafka-key.pem or grafana-key.pem.*/
 	log.DefaultLogger.Info("consumerInitialize called")
+	consumerName := "kafka-datasource"
+	if client.ConsumerName != "" {
+		consumerName = client.ConsumerName
+	}
 	config := kafka.ConfigMap{
 		"bootstrap.servers":  client.BootstrapServers,
-		"group.id":           client.ConsumerName,
+		"group.id":           consumerName,
 		"enable.auto.commit": "false",
 	}
 	if client.SecurityProtocol != "" {
@@ -115,48 +120,9 @@ func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, client
 	}
 }
 
-//func (client *KafkaClient) TopicAssign(topic string, partition int32, autoOffsetReset string, timestampMode string) error {
-
 func (client *KafkaClient) TopicAssign(topic string) error {
 	log.DefaultLogger.Info("topicAssign called", "topic", topic)
-	//if client.Consumer != nil {
-	//	err := client.Consumer.Close()
-	//	if err != nil {
-	//		log.DefaultLogger.Error(fmt.Sprintf("error during subscribing to topic: %s err: %v", topic, err))
-	//	}
-	//}
-
 	client.consumerInitialize("", "", "")
-	//client.TimestampMode = timestampMode
-	//var err error
-	//var offset int64
-	//var high, low int64
-	//switch autoOffsetReset {
-	//case "latest":
-	//	offset = int64(kafka.OffsetEnd)
-	//case "earliest":
-	//	low, high, err = client.Consumer.QueryWatermarkOffsets(topic, partition, 100)
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//	if high-low > MAX_EARLIEST {
-	//		offset = high - MAX_EARLIEST
-	//	} else {
-	//		offset = low
-	//	}
-	//default:
-	//	offset = int64(kafka.OffsetEnd)
-	//}
-	//
-	//topic_partition := kafka.TopicPartition{
-	//	Topic:     &topic,
-	//	Partition: partition,
-	//	Offset:    kafka.Offset(offset),
-	//	Metadata:  new(string),
-	//	Error:     err,
-	//}
-	//partitions := []kafka.TopicPartition{topic_partition}
-	//err = client.Consumer.Assign(partitions)
 	_, err2 := client.Consumer.GetMetadata(&topic, false, 200)
 	if err2 != nil {
 		log.DefaultLogger.Error(fmt.Sprintf("topic doesnot exist: %s err: %v", topic, err2))
@@ -179,7 +145,7 @@ func (client *KafkaClient) ConsumerPull() (KafkaMessage, kafka.Event) {
 
 	switch e := ev.(type) {
 	case *kafka.Message:
-		if client.DataType == "AVRO" {
+		if strings.ToLower(client.DataType) == "avro" {
 			schema, err := avro.Parse(`{ "type":"record", "name":"Data", "fields": [{"name":"name","type":"string"},{"name":"quality","type":"string"},{"name":"valuetimestamp","type":"string"}, {"name":"value","type":"double"}]}`)
 			err = avro.Unmarshal(schema, e.Value, &message.Value)
 			if err != nil {

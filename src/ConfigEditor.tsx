@@ -150,7 +150,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
               label="Data type"
               labelWidth={11}
               onChange={this.onDataTypeChange}
-              value={jsonData.dataType || 'JSON'}
+              value={jsonData.dataType}
               placeholder="<JSON|AVRO>"
           />
         </div>
@@ -159,7 +159,7 @@ export class ConfigEditor extends PureComponent<Props, State> {
               label="Consumer Name"
               labelWidth={11}
               onChange={this.onConsumerGroupChange}
-              value={jsonData.consumerName || 'kafka-datasource'}
+              value={jsonData.consumerName}
               placeholder="<Consumer name>"
           />
         </div>

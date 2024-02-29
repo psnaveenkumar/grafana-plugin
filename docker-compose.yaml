@@ -3,6 +3,9 @@ version: '2'
 services:
   grafana:
     image: 'grafana/grafana:latest'
+    volumes:
+      - ./private_key.pem:/app/certs/private_key.pem
+      - ./client_cert.pem:/app/certs/client_cert.pem
     ports:
       - '3000:3000'
     depends_on:

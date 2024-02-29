@@ -96,6 +96,10 @@ func (client *KafkaClient) consumerInitialize(caCertPath, clientCertPath, client
 	if client.SecurityProtocol != "" {
 		log.DefaultLogger.Info("setting SecurityProtocol", "SecurityProtocol", client.SecurityProtocol)
 		config.SetKey("security.protocol", client.SecurityProtocol)
+		if client.SecurityProtocol == "SSL" {
+			config.SetKey("ssl.key.location", "/app/certs/private_key.pem")
+			config.SetKey("ssl.certificate.location", "/app/certs/client_cert.pem")
+		}
 	}
 	if client.SaslMechanisms != "" {
 		log.DefaultLogger.Info("setting SaslMechanisms", "SaslMechanisms", client.SaslMechanisms)
